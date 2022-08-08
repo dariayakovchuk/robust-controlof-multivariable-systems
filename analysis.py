@@ -10,14 +10,13 @@ K = 0.1
 
 def analysis():
     """Plot open-loop responses for various inputs"""
-    g = plant()
-    G = 1 + g*K
-    t = np.logspace(0.01, math.pi/Ts, 400)
+    G = plant() * K
+    t = np.linspace(0, 20, 80)
 
     # step response of the system
     plt.figure(1)
-    T, yout = step_response(G, input=0)
-    plt.plot(T.T, yout.T)
+    yout, T = step(feedback(G, 1), t)
+    plt.plot(T, yout)
     plt.show(block=False)
 
     # Bode plot for the system
