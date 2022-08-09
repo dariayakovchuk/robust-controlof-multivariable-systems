@@ -22,35 +22,38 @@ def plant():
     return ss(sys1)
 
 
-def synth_h2(g, t, w1, w2):
+def synth_h2(g, ejw, w, w1, w2):
     n = 3
-    x, y, z = cp.Variable(n), cp.Variable(n), cp.Variable(n)
-    Z_prev = 0.
+    x, y, gamma = cp.Variable((n,1)), cp.Variable((n,1)), cp.Variable((len(w), 1), nonneg=True)
+    GAMMA_prev = 0.
     cost = 0
     constraints, K = [], []
-    for i in range(len(t)):
+    for i in range(len(w)):
         G = g[i]
-        w = t[i]
-        X = x[0] * (w**2) + x[1] * w + x[2]
-        Y = 1 * (w**2) + y[1] * w + y[2]
-        Z = z[0] * (w**2) + z[1] * w + z[2]
-        Xc, Yc = 0.1 * (w**2), (w**2)
+        X = x[0] * (ejw[i]**2) + x[1] * ejw[i] + x[2]
+        Y = 1 * (ejw[i]**2) + y[1] * ejw[i] + y[2]
+        GAMMA = gamma[i]
+        Xc, Yc = 0.1 * (ejw[i]**2), (ejw[i]**2)
         P, Pc = Y + G * X, Yc + G * Xc
         T = conj(P) * Pc + conj(Pc) * P - conj(Pc) * Pc
         # f = cp.hstack([w1*Y, w2*X])
         F = w1*Y
         I = np.eye(2)
-        tmp = cp.vstack([cp.hstack([Z, F]), cp.hstack([conj(F), T])])
+        tmp = cp.vstack([cp.hstack([GAMMA, F]), cp.hstack([conj(F), T])])
         # tmp2 = cp.vstack([cp.hstack([I*Z, f]), cp.hstack([conj(f), T])])
-        cost += (Z_prev + Z) * (t[i]-t[i-1]) / 2
-        constraints += [tmp >> 0]
-        Z_prev = Z
-    obj = cp.Minimize(2 * real(cost))
+        # print(t[i] - t[i-1])
+        if i==0:
+            cost = GAMMA/2*w[0]
+        else:
+            cost += ((GAMMA_prev + GAMMA) / 2) * (w[i] - w[i-1])
+        constraints += [ cp.bmat([[GAMMA, F],[ conj(F), T]]) >> 0]
+        GAMMA_prev = GAMMA
+    obj = cp.Minimize(2 * cost)
     prob = cp.Problem(obj, constraints)
-    prob.solve()
+    prob.solve(solver=cp.MOSEK, verbose=True)
     print("status:", prob.status)
     print("optimal value", prob.value)
-    return K
+    return x.value, y.value
 
 def freq_response(g, w):
     mag, phase, omega = freqresp(g, w)
@@ -61,15 +64,15 @@ def freq_response(g, w):
 
 def H2_perf(t, w1, w2):
     g = plant()
-    G, w = freq_response(g, t)
-    K = synth_h2(G, w, w1, w2)
+    G, ejw = freq_response(g, t)
+    K = synth_h2(G, ejw, t, w1, w2)
     print(K)
 
 def design():
     """Show results of designs"""
     W1 = 1.
     W2 = 1.
-    t = np.logspace(0.01, math.pi/Ts, 2)
+    t = np.logspace(np.log10(0.01), np.log10(math.pi/Ts), 40) # (a,b) 10^a ..... 10 ^b   -> c ... d ---> a = log(c), b = log(d)
     H2_perf(t, W1, W2)
 
 if __name__ == "__main__":
