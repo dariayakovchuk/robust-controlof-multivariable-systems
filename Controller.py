@@ -55,9 +55,9 @@ class Controller:
                 array.append(self.weights[i] * Y)
         return cp.vstack(array)
 
-    def validation(self):
+    def validation(self, K):
         iG, jG = self.Gjw.shape[0], self.Gjw.shape[1]
-        iK, jK = self.K.shape[0], self.K.shape[1]
+        iK, jK = K.shape[0], K.shape[1]
         if jG == iK or jK == 0:
             self.valid = True
 
@@ -93,8 +93,20 @@ class Controller:
         prob.solve(solver=cp.MOSEK, verbose=True)
         print("status:", prob.status)
         print("optimal value", prob.value)
-        return x.value, y.value
+        K = x.value * np.linalg.inv(y.value)
+        return K, prob.value, prob.status
 
     def check_accorg(self): pass
 
-    def iterative_solve(self): pass
+    def iterative_solve(self, XY_structure):
+        e = 10^2
+        gamma_prev = 0
+        K = self.Kc
+        self.validation(K)
+        while self.valid:
+            self.K, gamma, status = self.optimization(XY_structure)
+            if gamma < e or gamma - gamma_prev < e or status == "infiesible":
+                break
+            gamma_prev = gamma
+            self.Kc = self.K
+
