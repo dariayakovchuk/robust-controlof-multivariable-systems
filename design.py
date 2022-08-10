@@ -39,13 +39,14 @@ def synth_h2(g, ejw, w, w1, w2):
         GAMMA = gamma[i]
         Xc, Yc = 0.1 * (ejw[i]**2), ejw[i]**2
         # P, Pc = Y + G * X, Yc + G * Xc
-        P, Pc = Y + G @ X, Yc + G * Xc
-        T = conj(P) * Pc + conj(Pc) * P - conj(Pc) * Pc
-        f = cp.hstack([w1*Y, w2*X])
+        I2 = np.eye(2)
+        P, Pc = Y + G @ X, (I2*Yc) + G @ (I2*Xc)
+        T = P.H @ Pc + Pc.conjugate().transpose() @ P - Pc.conjugate().transpose() @ Pc
+        f = cp.vstack([w1*Y, w2*X])
         I = np.eye(4)
         # tmp = cp.vstack([cp.hstack([GAMMA, w1*Y]), cp.hstack([conj(w1*Y), T])])
         # tmp = cp.vstack([cp.hstack([(I*GAMMA)[0], f[0]]), cp.hstack([(I*GAMMA)[1], f[1]]), cp.hstack([conj(f), T])])
-        tmp = cp.vstack([cp.hstack([(I*GAMMA), f.T]), cp.hstack([conj(f), T])])
+        tmp = cp.vstack([cp.hstack([(I*GAMMA), f]), cp.hstack([f.H, T])])
         if i == 0:
             cost += (GAMMA * w[0]) / 2
         else:
@@ -77,7 +78,7 @@ def design():
     """Show results of designs"""
     W1 = 1.
     W2 = 1.
-    t = np.logspace(np.log10(0.01), np.log10(math.pi/Ts), 40) # (a,b) 10^a ..... 10 ^b   -> c ... d ---> a = log(c), b = log(d)
+    t = np.logspace(np.log10(0.01), np.log10(math.pi/Ts), 10) # (a,b) 10^a ..... 10 ^b   -> c ... d ---> a = log(c), b = log(d)
     H2_perf(t, W1, W2)
 
 if __name__ == "__main__":
