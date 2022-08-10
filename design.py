@@ -9,6 +9,8 @@ from control.matlab import *
 from control import freqresp
 from cvxpy import conj, real
 
+from Controller import Controller
+
 Ts = 0.1
 
 
@@ -72,6 +74,9 @@ def H2_perf(t, w1, w2):
     g = plant()
     G, ejw = freq_response(g, t)
     K = synth_h2(G, ejw, t, w1, w2)
+    inp = ['1 y', '1 x']
+    obj = Controller(G, Ts, t, inp, 3, 0.1)
+    obj.optimization(1)
     print(K)
 
 def design():
