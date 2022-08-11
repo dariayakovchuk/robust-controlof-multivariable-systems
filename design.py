@@ -21,8 +21,9 @@ def plant():
     num = [0, 2.]
     den = [1, -.9]
     # sys1 = tf(num, den, Ts)  # SISO system
-    sys1 = tf([[[n * 2 for n in num], [n * 0.1 for n in num]], [[n * 0 for n in num], num]],
-              [[den, den], [den, den]], Ts)  # MIMO system
+    sys1 = tf([[[n * 2 for n in num], [n * 0.1 for n in num], [n * 0.3 for n in num]], [[n * 0 for n in num], num, num], [num, num, num]],
+              [[den, den, den], [den, den, den], [den, den, den]], Ts)  # MIMO system
+    print(sys1, ss(sys1))
     return ss(sys1)
 
 
@@ -64,7 +65,7 @@ def synth_h2(g, ejw, w, w1, w2):
 
 def freq_response(g, w):
     mag, phase, omega = freqresp(g, w)
-    # print('mag, phase, omega', mag, phase, omega)
+    print('mag, phase, omega', mag.shape[1])
     ejw = np.exp(1j * w * Ts)
     # sjw = mag * np.exp(1j * phase)
     sjw = (mag * np.exp(1j * phase)).transpose(2, 0, 1)
@@ -75,9 +76,9 @@ def H2_perf(t, w1, w2):
     G, ejw = freq_response(g, t)
     # K = synth_h2(G, ejw, t, w1, w2)
     # print(K)
-    inp = ['1 y', '1 x']
-    obj = Controller(G, 0.1, t, inp, 3, 0.1)
-    obj.iterative_solve(1)
+    # inp = ['1 y', '1 x']
+    # obj = Controller(G, 0.1, t, inp, 3, 0.1)
+    # obj.iterative_solve(1)
 
 
 def design():
