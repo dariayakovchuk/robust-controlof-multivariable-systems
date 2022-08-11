@@ -73,11 +73,12 @@ def freq_response(g, w):
 def H2_perf(t, w1, w2):
     g = plant()
     G, ejw = freq_response(g, t)
-    K = synth_h2(G, ejw, t, w1, w2)
+    # K = synth_h2(G, ejw, t, w1, w2)
+    # print(K)
     inp = ['1 y', '1 x']
-    obj = Controller(G, Ts, t, inp, 3, 0.1)
-    obj.optimization(1)
-    print(K)
+    obj = Controller(G, 0.1, t, inp, 3, 0.1)
+    obj.iterative_solve(1)
+
 
 def design():
     """Show results of designs"""

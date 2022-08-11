@@ -1,3 +1,5 @@
+import numbers
+
 import numpy as np
 import cvxpy as cp
 import re
@@ -43,6 +45,27 @@ class Controller:
         self.weights = np.array(weights)
         self.weights_shape = self.weights.shape[0]
 
+    def eye_matrix_shape(self):
+        self.validation()
+        if self.valid:
+            iG = self.Gjw[0].shape[0]
+            self.shape = iG
+
+    def discrete_time_controller_X(self, x, t):
+        tmp = 0.
+        for i in range(self.n):
+            tmp += x[i] * (self.ejw[t] ** i)
+        return tmp
+
+    def discrete_time_controller_Y(self, y, t):
+        tmp = 0.
+        for i in range(self.n):
+            if i == self.n - 1:
+                tmp += 1 * (self.ejw[t] ** i)
+            else:
+                tmp += y[i] * (self.ejw[t]**i)
+        return tmp
+
     def define_complex_exp_function(self):
         self.ejw = np.exp(1j * self.w * self.Ts)
 
@@ -55,30 +78,36 @@ class Controller:
                 array.append(self.weights[i] * Y)
         return cp.vstack(array)
 
-    def validation(self, K):
-        iG, jG = self.Gjw.shape[0], self.Gjw.shape[1]
-        iK, jK = K.shape[0], K.shape[1]
-        if jG == iK or jK == 0:
+    def validation(self):
+        iG, jG = self.Gjw[0].shape[0], self.Gjw[0].shape[1]
+        if isinstance(self.K, numbers.Number):
             self.valid = True
+        elif isinstance(self.K[0], numbers.Number):
+            self.K = self.K[0]
+            self.valid = True
+        else:
+            iK, jK = self.K.shape[0], self.K.shape[1]
+            if jG == iK or jK == 0:
+                self.valid = True
 
     def optimization(self, structureXY):
         x, y, gamma = cp.Variable((self.n, 1)), cp.Variable((self.n, 1)), cp.Variable((len(self.w), 1), nonneg=True)
 
         GAMMA_prev, cost = 0, 0
         constraints = []
-
         for i in range(len(self.w)):
-            X1 = x[0] * (self.ejw[i]**2) + x[1] * self.ejw[i] + x[2]
-            Y1 = 1 * (self.ejw[i]**2) + y[1] * self.ejw[i] + y[2]
+            X1 = self.discrete_time_controller_X(x, i)
+            Y1 = self.discrete_time_controller_Y(y, i)
             X, Y = self.XY(structureXY, X1, Y1)
 
             GAMMA = gamma[i]
             Xc, Yc = self.Kc * (self.ejw[i] ** 2), self.ejw[i] ** 2
 
+            self.eye_matrix_shape()
             I = np.eye(self.shape)
             I2 = np.eye(2 * self.shape)
             f = self.F(X, Y)
-            P, Pc = Y + self.Gjw[i] @ X, 0
+            P = Y + self.Gjw[i] @ X
             Pc = (I * Yc) + self.Gjw[i] @ (I * Xc)
             T = P.H @ Pc + Pc.conjugate().transpose() @ P - Pc.conjugate().transpose() @ Pc
             tmp = cp.vstack([cp.hstack([(I2 * GAMMA), f]), cp.hstack([f.H, T])])
@@ -93,20 +122,28 @@ class Controller:
         prob.solve(solver=cp.MOSEK, verbose=True)
         print("status:", prob.status)
         print("optimal value", prob.value)
-        K = x.value * np.linalg.inv(y.value)
-        return K, prob.value, prob.status
+        print(x.value, y.value)
+        K = x.value.T @ np.linalg.pinv(y.value).T
+        return K[0], prob.value, prob.status
 
-    def check_accorg(self): pass
+    @staticmethod
+    def check_accord(val1, val2, val3, err):
+        condition1 = (val1 < err)
+        condition2 = (val2 < err)
+        condition3 = (val3 == 'infeasible' or val3 == 'unbounded')
+        if condition1 or condition2 or condition3:
+            return True
+        else:
+            return False
 
     def iterative_solve(self, XY_structure):
-        e = 10^2
+        e = 0.001
         gamma_prev = 0
-        K = self.Kc
-        self.validation(K)
+        self.K = self.Kc
+        self.validation()
         while self.valid:
             self.K, gamma, status = self.optimization(XY_structure)
-            if gamma < e or gamma - gamma_prev < e or status == "infiesible":
+            if self.check_accord(gamma, gamma - gamma_prev, status, e):
                 break
             gamma_prev = gamma
             self.Kc = self.K
-
