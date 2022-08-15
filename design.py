@@ -39,13 +39,15 @@ def synth_h2(g, eiw, w, w1, w2):
         Y_REAL, Y_IMEG = Y1[0], Y1[1]
         GAMMA = gamma.index(i, 0)
         Xc, Yc = [0.1 * ejw[0]**2, 0.1 * ejw[1]**2], [ejw[0]**2, ejw[1]**2]
-        I2 = np.eye(2)
+        I2 = Matrix.eye(2)
         P, Pc = [Expr.add(Y_REAL, Expr.mul(G[0], X_REAL)), Expr.add(Y_IMEG, Expr.mul(G[1], X_REAL))], [Yc[0] + (G[0] * Xc[0]), Yc[1] + (G[1] * Xc[1])]
         T_REAL = Expr.sub(Expr.add(Expr.mul(P[0], Pc[0]), Expr.mul(Pc[0], P[0])), Pc[0] * Pc[0])
         T_IMEG = Expr.sub(Expr.add(Expr.mul(Expr.neg(P[1]), Pc[1]), Expr.mul(-Pc[1], P[1])), -Pc[1] * Pc[1])
-        f = cp.vstack([w1*Y, w2*X])
-        I = np.eye(4)
-    #     tmp = cp.vstack([cp.hstack([(I*GAMMA), f]), cp.hstack([f.H, T])])
+        f_real = Expr.vstack(Expr.mul(w1, Y_REAL), Expr.mul(w2, X_REAL))
+        f_imeg = Expr.vstack(Expr.mul(w1, Y_IMEG), Expr.mul(w2, X_IMEG))
+        I = Matrix.eye(4)
+        expr1 = Expr.mul(I2, GAMMA)
+        tmp = Expr.vstack(Expr.hstack(expr1.slice([0, 0], [1, 0]), f_real.index(0)), Expr.hstack(expr1.slice([0, 1], [1, 1]), f_real.index(1)), Expr.hstack(Expr.transpose(f_real), T_REAL))
         if i == 0:
             cost += (GAMMA * w[0]) / 2
         else:
