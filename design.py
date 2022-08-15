@@ -4,11 +4,9 @@ from mosek.fusion import *
 
 import numpy as np
 import matplotlib.pyplot as plt
-import cvxpy as cp
 
 from control.matlab import *
 from control import freqresp
-from cvxpy import conj, real
 
 Ts = 0.1
 
@@ -19,12 +17,13 @@ def plant():
     """
     num = [0, 2.]
     den = [1, -.9]
-    sys1 = tf([[[n * 2 for n in num], [n * 0.1 for n in num]], [[n * 0 for n in num], num]],
-              [[den, den], [den, den]], Ts)  # MIMO system
+    sys1 = tf(num, den, Ts)
+    # sys1 = tf([[[n * 2 for n in num], [n * 0.1 for n in num]], [[n * 0 for n in num], num]],
+    #           [[den, den], [den, den]], Ts)  # MIMO system
     return ss(sys1)
 
 
-def synth_h2(g, ejw, w, w1, w2):
+def synth_h2(g, eiw, w, w1, w2):
     M = Model("semidefinite model")
     n = 3
     x, y, gamma = M.variable([n, 1]), M.variable([n, 1]), M.variable([len(w), 1], Domain.greaterThan(0.))
@@ -32,15 +31,19 @@ def synth_h2(g, ejw, w, w1, w2):
     cost = 0
     constraints = []
     for i in range(len(w)):
-        G = g[i]
-        X = Expr.outer(x.index([0, 0]), ejw[i] ** 2)
-        Y = [[Expr.mul(1 * (ejw[i] ** 2)) + y[1] * ejw[i] + y[2], 0], [0, 1 * (ejw[i] ** 2) + y[1] * ejw[i] + y[2]]]
-        GAMMA = gamma[i]
-        Xc, Yc = 0.1 * (ejw[i]**2), ejw[i]**2
+        G = [g[i].real, g[i].imag]
+        ejw = [eiw[i].real, eiw[i].imag]
+        X1 = [Expr.add([Expr.mul(x.index(0, 0), ejw[0]**2), Expr.mul(x.index(1, 0), ejw[0]), x.index(2, 0)]), Expr.add([Expr.mul(x.index(0, 0), ejw[1]**2), Expr.mul(x.index(1, 0), ejw[1]), x.index(2, 0)])]
+        Y1 = [Expr.add([Expr.mul(y.index(0, 0), ejw[0]**2), Expr.mul(y.index(1, 0), ejw[0]), y.index(2, 0)]), Expr.add([Expr.mul(y.index(0, 0), ejw[1]**2), Expr.mul(y.index(1, 0), ejw[1]), y.index(2, 0)])]
+        X_REAL, X_IMEG = X1[0], X1[1]
+        Y_REAL, Y_IMEG = Y1[0], Y1[1]
+        GAMMA = gamma.index(i, 0)
+        Xc, Yc = [0.1 * ejw[0]**2, 0.1 * ejw[1]**2], [ejw[0]**2, ejw[1]**2]
         I2 = np.eye(2)
-    #     P, Pc = Y + G @ X, (I2*Yc) + G @ (I2*Xc)
-    #     T = P.H @ Pc + Pc.conjugate().transpose() @ P - Pc.conjugate().transpose() @ Pc
-    #     f = cp.vstack([w1*Y, w2*X])
+        P, Pc = [Expr.add(Y_REAL, Expr.mul(G[0], X_REAL)), Expr.add(Y_IMEG, Expr.mul(G[1], X_REAL))], [Yc[0] + (G[0] * Xc[0]), Yc[1] + (G[1] * Xc[1])]
+        T_REAL = Expr.sub(Expr.add(Expr.mul(P[0], Pc[0]), Expr.mul(Pc[0], P[0])), Pc[0] * Pc[0])
+        T_IMEG = Expr.sub(Expr.add(Expr.mul(Expr.neg(P[1]), Pc[1]), Expr.mul(-Pc[1], P[1])), -Pc[1] * Pc[1])
+        f = cp.vstack([w1*Y, w2*X])
         I = np.eye(4)
     #     tmp = cp.vstack([cp.hstack([(I*GAMMA), f]), cp.hstack([f.H, T])])
         if i == 0:
@@ -56,7 +59,7 @@ def synth_h2(g, ejw, w, w1, w2):
 def freq_response(g, w):
     mag, phase, omega = freqresp(g, w)
     ejw = np.exp(1j * w * Ts)
-    sjw = (mag * np.exp(1j * phase)).transpose(2, 0, 1)
+    sjw = (mag * np.exp(1j * phase))  #.transpose(2, 0, 1)
     return sjw, ejw
 
 def H2_perf(t, w1, w2):
