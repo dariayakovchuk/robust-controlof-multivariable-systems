@@ -47,15 +47,18 @@ def synth_h2(g, eiw, w, w1, w2):
         f_imeg = Expr.vstack(Expr.mul(w1, Y_IMEG), Expr.mul(w2, X_IMEG))
         I = Matrix.eye(4)
         expr1 = Expr.mul(I2, GAMMA)
-        tmp = Expr.vstack(Expr.hstack(expr1.slice([0, 0], [1, 0]), f_real.index(0)), Expr.hstack(expr1.slice([0, 1], [1, 1]), f_real.index(1)), Expr.hstack(Expr.transpose(f_real), T_REAL))
+        tmp_real = Expr.vstack(Expr.hstack(expr1.slice([0, 0], [1, 2]), f_real.index(0)), Expr.hstack(expr1.slice([1, 0], [2, 2]), f_real.index(1)), Expr.hstack(Expr.transpose(f_real), T_REAL))
+        tmp_imeg = Expr.vstack(Expr.hstack(expr1.slice([0, 0], [1, 2]), f_imeg.index(0)), Expr.hstack(expr1.slice([1, 0], [2, 2]), f_imeg.index(1)), Expr.hstack(Expr.transpose(f_imeg), T_IMEG))
         if i == 0:
-            cost += (GAMMA * w[0]) / 2
+            cost = Expr.mul(Expr.mul(GAMMA, w[0]), 1/2)
         else:
-            cost += ((GAMMA_prev + GAMMA) / 2) * (w[i] - w[i-1])
-        M.constraint((tmp, Domain.inPSDCone()))
+            cost = Expr.add(Expr.mul(Expr.mul(Expr.add(GAMMA_prev, GAMMA), w[i] - w[i-1]), 1/2), cost)
+        M.constraint(Expr.vstack(Expr.hstack(tmp_real, Expr.neg(tmp_imeg)), Expr.hstack(tmp_imeg, tmp_real)), Domain.inPSDCone())
         GAMMA_prev = GAMMA
-    M.objective(ObjectiveSense.Minimize, 2 * cost)    # obj = cp.Minimize(2 * cost)
+    M.objective(ObjectiveSense.Minimize, Expr.mul(2, cost))   # obj = cp.Minimize(2 * cost)
     M.solve()
+    print(x.level())
+    print(y.level())
     # return x.value, y.value
 
 def freq_response(g, w):
@@ -74,7 +77,7 @@ def design():
     """Show results of designs"""
     W1 = 1.
     W2 = 1.
-    t = np.logspace(np.log10(0.01), np.log10(math.pi/Ts), 10) # (a,b) 10^a ..... 10 ^b   -> c ... d ---> a = log(c), b = log(d)
+    t = np.logspace(np.log10(0.01), np.log10(math.pi/Ts), 2) # (a,b) 10^a ..... 10 ^b   -> c ... d ---> a = log(c), b = log(d)
     H2_perf(t, W1, W2)
 
 
